@@ -1049,6 +1049,23 @@ func TestHasLegacyState_RetainedAdministrationDirectories(t *testing.T) {
 	assert.True(t, has, "a pending journal must be detected even after every catalog was archived")
 }
 
+func TestLegacyState_IgnoresRegularFilesInWorktreesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeMigrationTestData(t, dir, "worktrees/.DS_Store", []byte("not a worktree"))
+	has, err := HasLegacyState(dir)
+	require.NoError(t, err)
+	assert.False(t, has)
+	require.NoError(t, migrateWithTestOperationLock(t, dir))
+
+	legacy := writeMigrationTestCatalog(t, dir, "worktrees/linked/gh-stack", migrationTestFile(makeStack("main", "linked")))
+	has, err = HasLegacyState(dir)
+	require.NoError(t, err)
+	assert.True(t, has, "a stray file must not hide a real worktree catalog")
+	require.NoError(t, migrateWithTestOperationLock(t, dir))
+	assertMigrationOriginals(t, dir, []migrationCatalog{legacy}, true)
+	assert.FileExists(t, filepath.Join(dir, "worktrees", ".DS_Store"))
+}
+
 func TestLegacyState_MetadataErrors(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -1056,9 +1073,6 @@ func TestLegacyState_MetadataErrors(t *testing.T) {
 	}{
 		{"worktrees is a file", func(t *testing.T, dir string) {
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "worktrees"), []byte("not a directory"), 0600))
-		}},
-		{"admin entry is a file", func(t *testing.T, dir string) {
-			writeMigrationTestData(t, dir, "worktrees/not-a-directory", []byte("metadata"))
 		}},
 		{"catalog is a directory", func(t *testing.T, dir string) {
 			require.NoError(t, os.MkdirAll(filepath.Join(dir, "worktrees", "linked", stackFileName), 0755))

@@ -212,6 +212,11 @@ func legacyCatalogs(commonDir string) ([]migrationCatalog, error) {
 		if err != nil {
 			return nil, fmt.Errorf("inspecting worktree administration path %q: %w", path, err)
 		}
+		if info.Mode().IsRegular() {
+			// Git only treats directories under worktrees/ as administration
+			// entries; stray files such as Finder's .DS_Store are not worktrees.
+			continue
+		}
 		if !info.IsDir() {
 			return nil, fmt.Errorf("worktree administration path %q is not a directory", path)
 		}
